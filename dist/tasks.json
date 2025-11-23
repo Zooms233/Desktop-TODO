@@ -1,0 +1,14 @@
+[
+  {
+    "text": "1.重新写肽谱搜索引擎的代码，完成exe的封装",
+    "completed": false
+  },
+  {
+    "text": "2.下载新的数据，经过pfind处理后让spotlink运行",
+    "completed": false
+  },
+  {
+    "text": "3.对着代码编写规范，阅读理解spotlink代码",
+    "completed": false
+  }
+]
