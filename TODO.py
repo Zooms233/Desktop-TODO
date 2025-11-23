@@ -25,6 +25,12 @@ class StickyNotesApp(ctk.CTk):
         self.attributes("-alpha", 0.92)
         self.attributes("-topmost", True)
 
+        # --- [修复] 锁定脚本所在的绝对路径 ---
+        # 确保无论在哪里运行脚本，都能读到同级目录的文件
+        self.base_dir = os.path.dirname(os.path.abspath(__file__))
+        self.tasks_file = os.path.join(self.base_dir, "tasks.json")
+        self.pos_file = os.path.join(self.base_dir, "position.json")
+
         # 状态变量
         self.tasks = []
         self.current_scaling = 1.0
@@ -39,7 +45,7 @@ class StickyNotesApp(ctk.CTk):
         self.create_task_list()
         self.create_resize_grip()
 
-        self.load_tasks()
+        self.load_tasks()  # 加载任务
         self.load_window_position()  # 启动时加载位置
 
         # 绑定退出事件
@@ -107,10 +113,10 @@ class StickyNotesApp(ctk.CTk):
 
     def load_window_position(self):
         try:
-            if os.path.exists("position.json"):
-                with open("position.json", "r") as f:
+            # 使用 self.pos_file 绝对路径
+            if os.path.exists(self.pos_file):
+                with open(self.pos_file, "r") as f:
                     d = json.load(f)
-                # geometry 接收的是逻辑大小，position.json 里保存的现在也是逻辑大小了
                 self.geometry(
                     f"{d.get('width',300)}x{d.get('height',450)}+{d.get('x',0)}+{d.get('y',0)}"
                 )
@@ -119,24 +125,13 @@ class StickyNotesApp(ctk.CTk):
         except:
             self.geometry("300x450")
 
-    # --- [关键修复] 保存逻辑 ---
     def save_window_position(self):
         try:
-            # 1. 必须先更新缩放比例，确保 current_scaling 是最新的
             self.update_scaling_factor()
-
-            # 2. 获取当前的物理尺寸
             phys_width = self.winfo_width()
             phys_height = self.winfo_height()
-
-            # 3. 转换为逻辑尺寸 (物理 / 缩放比例)
-            # geometry() 函数期望的是逻辑尺寸，所以我们需要保存逻辑尺寸
             logical_width = int(phys_width / self.current_scaling)
             logical_height = int(phys_height / self.current_scaling)
-
-            # 4. 位置坐标 (x, y)
-            # 在 Windows High DPI Awareness 模式下，geometry("+x+y") 通常直接使用屏幕物理坐标
-            # 所以 x 和 y 不需要除以缩放比例 (除非你发现位置也发生巨大漂移)
             x = self.winfo_x()
             y = self.winfo_y()
 
@@ -146,7 +141,8 @@ class StickyNotesApp(ctk.CTk):
                 "x": x,
                 "y": y,
             }
-            with open("position.json", "w") as f:
+            # 使用 self.pos_file 绝对路径
+            with open(self.pos_file, "w") as f:
                 json.dump(d, f, indent=2)
         except Exception as e:
             print(f"Error saving position: {e}")
@@ -164,7 +160,6 @@ class StickyNotesApp(ctk.CTk):
             side="left", padx=10
         )
 
-        # 关闭按钮调用 close_app
         ctk.CTkButton(
             self.title_frame,
             text="✕",
@@ -217,8 +212,11 @@ class StickyNotesApp(ctk.CTk):
             self.save_tasks()
 
     def render_tasks(self):
+        # 清空现有组件
         for w in self.scroll_frame.winfo_children():
             w.destroy()
+
+        # 重新渲染
         for i, t in enumerate(self.tasks):
             f = ctk.CTkFrame(self.scroll_frame, fg_color="#2b2b2b")
             f.pack(fill="x", pady=2)
@@ -250,14 +248,27 @@ class StickyNotesApp(ctk.CTk):
         self.render_tasks()
         self.save_tasks()
 
+    # --- [修复] 加载逻辑 ---
     def load_tasks(self):
-        if os.path.exists("tasks.json"):
-            with open("tasks.json", "r") as f:
-                self.tasks = json.load(f)
+        # 使用绝对路径 self.tasks_file
+        if os.path.exists(self.tasks_file):
+            try:
+                with open(self.tasks_file, "r", encoding="utf-8") as f:
+                    self.tasks = json.load(f)
+                # [关键] 数据加载后，必须手动调用渲染函数来更新界面
+                self.render_tasks()
+            except Exception as e:
+                print(f"Read file error: {e}")
+                self.tasks = []
 
+    # --- [修复] 保存逻辑 ---
     def save_tasks(self):
-        with open("tasks.json", "w") as f:
-            json.dump(self.tasks, f)
+        try:
+            # 使用绝对路径 self.tasks_file
+            with open(self.tasks_file, "w", encoding="utf-8") as f:
+                json.dump(self.tasks, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"Save file error: {e}")
 
 
 if __name__ == "__main__":
