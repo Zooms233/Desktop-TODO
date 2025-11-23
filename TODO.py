@@ -3,6 +3,7 @@ import tkinter as tk
 import json
 import os
 import ctypes
+import sys  # [新增] 必须引入 sys 以检测是否为打包环境
 
 # --- 1. 强制开启高DPI感知 ---
 try:
@@ -25,9 +26,16 @@ class StickyNotesApp(ctk.CTk):
         self.attributes("-alpha", 0.92)
         self.attributes("-topmost", True)
 
-        # --- [修复] 锁定脚本所在的绝对路径 ---
-        # 确保无论在哪里运行脚本，都能读到同级目录的文件
-        self.base_dir = os.path.dirname(os.path.abspath(__file__))
+        # --- [关键修改] 智能判定路径 ---
+        # 如果是打包后的 EXE (sys.frozen 为 True)，使用 sys.executable 获取 EXE 所在目录
+        # 如果是脚本运行，使用 __file__ 获取脚本所在目录
+        if getattr(sys, "frozen", False):
+            self.base_dir = os.path.dirname(sys.executable)
+        else:
+            self.base_dir = os.path.dirname(os.path.abspath(__file__))
+
+        print(f"Config path: {self.base_dir}")  # 调试用，可删除
+
         self.tasks_file = os.path.join(self.base_dir, "tasks.json")
         self.pos_file = os.path.join(self.base_dir, "position.json")
 
@@ -113,7 +121,6 @@ class StickyNotesApp(ctk.CTk):
 
     def load_window_position(self):
         try:
-            # 使用 self.pos_file 绝对路径
             if os.path.exists(self.pos_file):
                 with open(self.pos_file, "r") as f:
                     d = json.load(f)
@@ -141,7 +148,6 @@ class StickyNotesApp(ctk.CTk):
                 "x": x,
                 "y": y,
             }
-            # 使用 self.pos_file 绝对路径
             with open(self.pos_file, "w") as f:
                 json.dump(d, f, indent=2)
         except Exception as e:
@@ -212,11 +218,9 @@ class StickyNotesApp(ctk.CTk):
             self.save_tasks()
 
     def render_tasks(self):
-        # 清空现有组件
         for w in self.scroll_frame.winfo_children():
             w.destroy()
 
-        # 重新渲染
         for i, t in enumerate(self.tasks):
             f = ctk.CTkFrame(self.scroll_frame, fg_color="#2b2b2b")
             f.pack(fill="x", pady=2)
@@ -248,23 +252,18 @@ class StickyNotesApp(ctk.CTk):
         self.render_tasks()
         self.save_tasks()
 
-    # --- [修复] 加载逻辑 ---
     def load_tasks(self):
-        # 使用绝对路径 self.tasks_file
         if os.path.exists(self.tasks_file):
             try:
                 with open(self.tasks_file, "r", encoding="utf-8") as f:
                     self.tasks = json.load(f)
-                # [关键] 数据加载后，必须手动调用渲染函数来更新界面
                 self.render_tasks()
             except Exception as e:
                 print(f"Read file error: {e}")
                 self.tasks = []
 
-    # --- [修复] 保存逻辑 ---
     def save_tasks(self):
         try:
-            # 使用绝对路径 self.tasks_file
             with open(self.tasks_file, "w", encoding="utf-8") as f:
                 json.dump(self.tasks, f, indent=2, ensure_ascii=False)
         except Exception as e:
