@@ -1,2 +1,5 @@
 .vene/
 build/
+position.json
+tasks.json
+*.spec
