@@ -14,7 +14,9 @@ class StickyNotesApp(ctk.CTk):
 
         # --- 窗口基础设置 ---
         self.title("Desktop TODO")
-        self.geometry("300x450")
+
+        # 加载窗口位置和大小
+        self.load_window_position()
 
         # 去除原生标题栏
         self.overrideredirect(True)
@@ -55,6 +57,78 @@ class StickyNotesApp(ctk.CTk):
         # 窗口拖拽变量
         self.x_pos = 0
         self.y_pos = 0
+
+        # 绑定窗口大小和位置变化事件
+        self.bind("<Configure>", self.on_window_configure)
+
+    def load_window_position(self):
+        """加载窗口位置和大小"""
+        try:
+            if os.path.exists("position.json"):
+                with open("position.json", "r", encoding="utf-8") as f:
+                    pos_data = json.load(f)
+                width = pos_data.get("width", 300)
+                height = pos_data.get("height", 450)
+                x = pos_data.get("x", (self.winfo_screenwidth() - 300) // 2)
+                y = pos_data.get("y", (self.winfo_screenheight() - 450) // 2)
+                self.geometry(f"{width}x{height}+{x}+{y}")
+            else:
+                # 默认位置为窗口正中央
+                screen_width = self.winfo_screenwidth()
+                screen_height = self.winfo_screenheight()
+                x = (screen_width - 300) // 2
+                y = (screen_height - 450) // 2
+                self.geometry(f"300x450+{x}+{y}")
+                # 创建默认的position.json文件
+                self.save_window_position()
+        except:
+            # 出错时使用默认设置
+            screen_width = self.winfo_screenwidth()
+            screen_height = self.winfo_screenheight()
+            x = (screen_width - 300) // 2
+            y = (screen_height - 450) // 2
+            self.geometry(f"300x450+{x}+{y}")
+            self.save_window_position()
+
+    def save_window_position(self):
+        """保存窗口位置和大小到position.json"""
+        try:
+            geometry = self.geometry()
+            # geometry 可能为空或 None（例如窗口尚未映射），在这种情况下使用 winfo_* 的值作为回退
+            if not geometry:
+                # 使用合理的最小值作为默认回退
+                try:
+                    width = max(250, self.winfo_width())
+                    height = max(300, self.winfo_height())
+                    x = self.winfo_x()
+                    y = self.winfo_y()
+                except Exception:
+                    width, height, x, y = 300, 450, 0, 0
+            else:
+                # 解析geometry字符串，格式如 "300x450+100+50"
+                parts = geometry.split('+')
+                size_part = parts[0]
+                width, height = map(int, size_part.split('x'))
+                x = int(parts[1]) if len(parts) > 1 else self.winfo_x()
+                y = int(parts[2]) if len(parts) > 2 else self.winfo_y()
+
+            pos_data = {
+                "width": width,
+                "height": height,
+                "x": x,
+                "y": y
+            }
+
+            with open("position.json", "w", encoding="utf-8") as f:
+                json.dump(pos_data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"保存窗口位置时出错: {e}")
+
+    def on_window_configure(self, event=None):
+        """当窗口大小或位置改变时调用"""
+        # 防止在初始化时保存位置
+        if hasattr(self, 'title_frame'):
+            self.after(100, self.save_window_position)  # 延迟保存以避免频繁写入
 
     def create_title_bar(self):
         """创建自定义标题栏"""
@@ -165,6 +239,8 @@ class StickyNotesApp(ctk.CTk):
         x = self.winfo_x() + event.x - self.x_pos
         y = self.winfo_y() + event.y - self.y_pos
         self.geometry(f"+{x}+{y}")
+        # 拖拽时也保存位置
+        self.after(100, self.save_window_position)
 
     def start_resize(self, event):
         self.resize_start_x = event.x_root
@@ -178,6 +254,8 @@ class StickyNotesApp(ctk.CTk):
         new_w = max(250, self.start_width + delta_x)
         new_h = max(300, self.start_height + delta_y)
         self.geometry(f"{new_w}x{new_h}")
+        # 调整大小时也保存位置
+        self.after(100, self.save_window_position)
 
     def toggle_topmost(self):
         self.is_topmost = not self.is_topmost
